@@ -18,9 +18,22 @@ setup(
     description=__description,
     long_description=__long_description,
     long_description_content_type='text/markdown',
-    install_requires=['numpy'],
+    install_requires=['numpy', 'Pillow'],
     extras_require={
-        'full': []
+        'grpc': [
+            'grpcio',
+        ],
+        'http': [
+            'fastapi',
+            'httpx',
+            'msgpack',
+        ],
+        'all': [
+            'grpcio',
+            'fastapi',
+            'httpx',
+            'msgpack',
+        ]
     },
     classifiers=[],
     keywords=[]

@@ -166,13 +166,21 @@ The flow in the example above can be shown as
 
 which looks awesome, doesn't it? :)
 
-### Client, Server
+### Driver
 
-We have mentioned the client and server a lot previously on this documentation. There are so many execellent libraries that focus on C/S and RPC stuff, so we decided to leave the client and server as is, classes with abstract methods, or interfaces the one we prefer.
+We have mentioned the client and server a lot previously on this documentation. These two are the program under the hood to transmit docarraies between executors and are abstracted as an interface called `Driver` represented using the abstract class in Python so that xooai users can choose different implementations depending on their needs.
 
-We will either provided an implementation over [msgpack](https://msgpack.org/) and the [FastAPI](https://fastapi.tiangolo.com/) since it has native support for [Swagger](https://swagger.io/) and pure clean APIs, or an implementation over [gRPC](http://grpc.io) for [protobuf](https://github.com/protocolbuffers/protobuf).
+There are so many execellent Python libraries that focus on C/S and RPC stuff like [FastAPI](https://fastapi.tiangolo.com/) who has native support for [Swagger](https://swagger.io/), or [gRPC](http://grpc.io) who uses HTTP/2 as the tranport layer.
 
-We'll see.
+We are going to provide two driver implementations using FastAPI with [msgpack](https://msgpack.org/) for docarray (de)serialization, and gRPC with its [protobuf](https://protobuf.dev) toolchain. Both are placed in subdirectory - [drivers](./xooai/drivers/).
+
+To use xooai with the gRPC driver for example.
+
+```bash
+pip install xooai[grpc]
+```
+
+You are welcome to PR more driver implementation based on the tool you like.
 
 ### Cloud Native
 
