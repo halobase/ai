@@ -19,7 +19,7 @@ We take [docarray](https://github.com/docarray/docarray)'s excellent approach fo
 
 Each takes a higher level of abstraction from the previous one.
 
-#### DocArray
+#### Doc
 
 The biggest problem so far has been the generalization of model data flows, a way to put different kinds of ML inputs and outputs into a unified representation in code. Here's how we do it.
 
@@ -30,7 +30,7 @@ t1 = Text(uri='233.jpg')
 t2 = Text(uri='https://some.domain/233.jpg')
 ```
 
-or from some alreay text
+or from some ready text
 
 ```python
 t3 = Text(text='Aa')
