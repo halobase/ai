@@ -6,6 +6,7 @@ from typing import (
     Optional,
     Union,
     Tuple,
+    Dict,
     Any,
     Iterable, 
     Callable,
@@ -33,7 +34,23 @@ class Driver(ABC):
         executors. The default gateway directs to localhost:8080.
         '''
         self.gateway = gateway or 'localhost:8080'
+        self.executors: Dict[str, 'Executor'] = {}
 
+    
+    def add(self, use: 'Executor', id: Optional[str] = None):
+        '''Adds an executor into the driver to subscribe on docarray request.
+        
+        'id' will default to the executor's name if not specified.
+        '''
+        if id is None:
+            id = use.name
+        self.executors[id] = use
+
+
+    def remove(self, id: str):
+        '''Removes an executor specified by 'id' from the driver.'''
+        if id in self.executors:
+            del self.executors[id]
 
 
     @abstractmethod
@@ -112,20 +129,20 @@ class Doc(ABC):
         return self.to_blob()
 
 
-    @abstractmethod
-    def to_blob(self) -> bytes: ...
+    # @abstractmethod
+    # def to_blob(self) -> bytes: ...
 
 
-    @abstractmethod
-    def from_blob(self): ...
+    # @abstractmethod
+    # def from_blob(self): ...
 
 
-    @abstractmethod
-    def to_tensor(self) -> Tensor: ...
+    # @abstractmethod
+    # def to_tensor(self) -> Tensor: ...
 
 
-    @abstractmethod
-    def from_tensor(self): ...
+    # @abstractmethod
+    # def from_tensor(self): ...
 
 
 class DocArray:
@@ -260,9 +277,11 @@ class Executor:
     
     async def stream(self, on: str) -> Stream: raise NotImplementedError
 
+
     def __enter__(self):
         return self
     
+
     def __exit__(self):
         self.driver.stop()
 
@@ -270,14 +289,18 @@ class Executor:
 class Flow:
 
     def __init__(self,
+                 name: Optional[str] = None,
                  driver: Optional['Driver'] = None):
         '''Create a flow.'''
+        self.name = name
         self.driver = driver
         self.nodes = {}
         self.edges = {}
 
+
     def add(self, 
             use: Union[Executor, str],
+            *,
             on: Optional[str] = None,
             id: Optional[str] = None,
             needs: Optional[Iterable[str]] = None,
@@ -300,8 +323,7 @@ class Flow:
             name, endpoint = _parse_path(url.path[1:])
             use = Executor(name=name,
                            gateway=url.netloc,
-                           client=self.client,
-                           server=self.server,
+                           driver=self.driver,
                            post_endpoints=(endpoint,))
         else:
             raise TypeError(f"'use' can only be an instance of either Executor or str")
