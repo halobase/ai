@@ -70,7 +70,7 @@ Note that you have to wrap your class with the `dataclass` decorator to generate
 
 The next level of abstraction is called an executor, a hybrid structure that has endpoints defined in it to handle specific requests.
 
-We use the term `hybrid`, because an executor is both the client and the server for a service. You will see why such an approach. Right Now let's just take a look at a simple example of how to use an executor.
+We use the term `hybrid`, because an executor is both the client and the server of a model service. You will see why such an approach. Right Now let's just take a look at a simple example of how to use an executor.
 
 ```python
 from xooai import Executor, post
@@ -114,7 +114,7 @@ The last line makes an in-process mocking invocation to the `echo` endpoint. Wai
 res = e.echo(docs=DocArray())
 ```
 
-You are right! We can make a direct call to the echo method, but we are testing whethor a request can be transmitted to the endpoint handler via the whole call stack, aren't we?
+You are right! We can make a direct call to the echo method, but we are testing whether a request can be transmitted to the endpoint handler via the whole call stack, aren't we?
 
 Alright, we will see a more practical example in the next section - the Flow!
 
@@ -141,10 +141,10 @@ f.add(use=MyExecutor, on='echo', id='e3', needs=('e1', 'e2'))
 res = f.post(docs=DocArray())
 ```
 
-As you can see, a flow is like a pipeline consist with multiple excutors. In this case, we added three executors into a flow, each of them is indexed by a `key` argument. e3 is our self-defined executor has an extra argument called `needs` to tell the flow scheduler that e3 can be executed only after e1 and e2 are finished. This is why we call it a pipeline :)
+As you can see, a flow is like a pipeline consist with multiple excutors. In this case, we added three executors into a flow, each of them is indexed by an `id` argument. e3 is our self-defined executor that has an extra argument called `needs` to tell the flow scheduler that e3 can be executed only after e1 and e2 are finished. This is why we call it a pipeline :)
 
-Yea~ e1 and e2 are executors running in the cloud or a remote host in our local network, this is done possible due to our hyrid design of executors!
-In other words, e1 and e2 and executors as clients instead of servers as shown in the prevous cases.
+Yea~ e1 and e2 are executors running in the cloud or a remote host in our local network, this can be done possible due to our hyrid design of executors!
+In other words, e1 and e2 and executors as clients instead of servers as shown in the previous cases.
 
 Additionally, a flow can be specified a gateway address as follows, by doing so, can headless executors inherit a gateway address from the flow it belongs to.
 
@@ -178,11 +178,26 @@ We'll see.
 
 The sencond largest pain in the *ss is how we can shift our models into a cloud-native environment. Even with xooai now, it is still not clear how.
 
-Having Been working on [Go](https://go.dev) and microservices for a long while, we realize that it is a have-to-go step to make if we want to build a serverless function platform for ML models and meet the concepts of [FaaS](https://en.wikipedia.org/wiki/Function_as_a_Service), all we need now is again another level of abstract over the Flow, an API gateway in front of all the flows running as OCI containers, thus leading us to:
+Having been working on [Go](https://go.dev) and microservices for a long while, we realize that it is a have-to-go step to make if we want to build a serverless function platform for ML models and get the concepts of [FaaS](https://en.wikipedia.org/wiki/Function_as_a_Service) done. All we need now is again another level of abstract over the Flow, an API gateway in front of all the flows running as OCI containers, thus leading us to:
 
-- A CLI to generate Kubernetes configuration files.
-- A set of services to orchestrate the entire multi-tenancy platform.
-- A public website as the UI of the platform for online model invocation and executor management, flow management, application management, etc.
+- A multi-tenancy platform with an API gateway to publish and consume xooai executors.
+- A CLI to generate Dockerfile and Kubernetes configuration files for the platform to build and deploy xooai executors automatically.
+- A set of services to orchestrate the entire platform itself.
+- A public website as the UI of the platform for online invocation and executor management, flow management, application management, etc.
+
+### Microservices
+
+You may have noticed that the design of the three core concepts actually makes xooai a microservice framework (in fact we prefer the term structurized-services) but with request and response limited to a Doc structure. It is! Have you ever had the idea that almost every software engineering or system architecting is essentially doing two kinds of calls - **synchronous bidirectional streaming** and **asynchronous messaging**, no matter whether it is service intercommunication or interaction with databases. This is why most of the system look the same under the table.
+
+The synchronous bidirectional streaming can derive into three sub-calls - 1) unary call, the one we do the most often with HTTP. 2) client-side streaming, used when we upload a large bunch of data, like a video, to the server and get a single response from it. 3) server-side streaming, used when we download a hell lot of data from a server and acknowledge it with a single response.
+
+[gRPC](http://grpc.io) has been implemented right upon such concept. It used HTTP/2 in its transport layer for full-deplex communication between services and split out the three other communication models from it. [micro](https://micro.dev) has gone far beyond that, it made a lot of abstraction over services and networks in distributed systems and integrated them into a serverless, environment-agnostic service platform, along with its support for asynchronous messaging, which is exciting.
+
+Asynchronous messaging is more interesting and really useful in some specific scenarios. It uses a communication model called subscribe/publish to decouple system architecture and smooth the data flow in a busy service network. We love to use it for system monitoring since it does not entangle with the functionalities of the system itself.
+
+Those two abstractions made a conclusion on communication in different kinds of software and distributed systems. It is like what James Clerk Maxwell has done for electromagnetic physics. Therefore we also hope to have a grand unified framework for any service development just like physicists since Albert Einstein wish for physics. With such a framework, it is no longer needed to spend a hell lot of time on design every time when developers want to build something, no matter if it is a monolithic system or distributed one. They just need to write code.
+
+By now, [micro](https://micro.dev) is the most promising one.
 
 ## License
 
