@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package xooai;
+
+message Doc {
+    string id = 1;
+    string uri = 2;
+    bytes blob = 3;
+    map<string, string> metadata = 4;
+}
+
+message DocArray {
+    repeated Doc docs = 1;
+}

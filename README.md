@@ -41,7 +41,7 @@ t3 = Text(text='Aa')
 - Text
 - Image
 - Audio
-- Vidio
+- Video
 
 All subclasses derive an attribute named `uri` from the base class `Doc` to specify a resource to be fetched when needed.
 
@@ -62,7 +62,7 @@ class MyDoc:
     your: YourDoc
 ```
 
-Note that you have to wrap your class with the `dataclass` decorator to generate the constructor function `__init__` for it, or you can use another dataclass implementation from [pydantic](https://pydantic.dev) that has support for field validation.
+Note that you have to decorate your class with `dataclass`  to generate the constructor function `__init__` for it, or use another dataclass implementated by [pydantic](https://pydantic.dev) that has support for attribute validation if you like.
 
 
 
