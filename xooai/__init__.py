@@ -15,7 +15,9 @@ from typing import (
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from urllib.parse import urlparse
-from uuid import uuid1
+
+from pydantic import BaseModel
+from pydantic.dataclasses import dataclass as doc
 
 
 if TYPE_CHECKING:
@@ -94,89 +96,72 @@ class NoopDriver(Driver):
 
 
 
-class Doc(ABC):
+class Doc(BaseModel):
     '''A class with some abstract methods to represent model input or output.'''
 
-    def __init__(self,
-                 *, # disable positional argument.
-                 id: str = uuid1(),
-                 uri: Optional[str] = None,
-                 obj: Optional[Any] = None):
-        '''Create a doc instance.
-        
-        'id' is a string identifying a doc. 'uri' is an address to a local or 
-        remote resource that will be fetched when needed. 'obj' is a subclass
-        specified attribute.
-        '''
-        self.id = id
-        self.uri = uri
-        self.obj = obj
-        self._blob = None
-        self._tensor = None
+    id: Optional[str]
+    ref: Optional[str]
+    value: Optional[bytes]
 
-    
-    @property
+
+    async def deref(self):
+        raise NotImplementedError
+
+
+    @abstractmethod
     def tensor(self) -> Tensor:
-        if self._tensor:
-            return self._tensor
-        return self.to_tensor()
+        '''Returns a tensor representation of the doc.'''
+        raise NotImplementedError
+    
+
+    @abstractmethod
+    def encode(self) -> bytes:
+        raise NotImplementedError
 
 
-    @property
-    def blob(self) -> bytes:
-        if self._blob:
-            return self._blob
-        return self.to_blob()
 
+class DocArray(BaseModel):
+    '''A class representing a series of docs.'''
+    docs: Optional[Iterable[Doc]]
 
-    # @abstractmethod
-    # def to_blob(self) -> bytes: ...
-
-
-    # @abstractmethod
-    # def from_blob(self): ...
-
-
-    # @abstractmethod
-    # def to_tensor(self) -> Tensor: ...
-
-
-    # @abstractmethod
-    # def from_tensor(self): ...
-
-
-class DocArray:
-
-    def __init__(self, docs: Iterable[Doc]):
-        self.docs = docs
 
     def __iter__(self):
-        for d in self.docs:
-            yield d
+        yield from self.docs
 
 
 
 class Text(Doc):
+    '''A class derived from Doc for representing text.'''
+    text: Optional[str]
 
-    def __init__(self,
-                 text: Optional[str] = None,
-                 *,
-                 uri: Optional[str] = None):
-        '''Create a text doc instance.'''
-        self.text = text
-        super().__init__(uri=uri, obj=text)
+    def tensor(self) -> Tensor:
+        # TODO:
+        raise NotImplementedError
+    
+
+    def encode(self) -> bytes:
+        return self.text.encode()
         
 
 
 class Image(Doc):
+    '''A class derived from Doc for representing an image.'''
+    image: Optional["PILImage"]
 
-    def __init__(self,
-                 image: Optional["PILImage"] = None,
-                 *,
-                 uri: Optional[str] = None):
-        '''Create an image doc instance.'''
-        self.image = image
-        super().__init__(uri=uri, obj=image)
+
+    def tensor(self) -> Tensor:
+        # TODO: 
+        raise NotImplementedError
+    
+
+    def encode(self) -> bytes:
+        # TODO:
+        raise NotImplementedError
+
+
+    def show(self) -> None:
+        # TODO:
+        raise NotImplementedError
 
 
 
@@ -370,7 +355,7 @@ if __name__ == '__main__':
 
     d = MyDoc(
         text=Text(text='Aa'), 
-        image=Image(uri='a.jpg'),
+        image=Image(ref='a.jpg'),
         your=YourDoc(text=Text(text='Bb')),
     )
     

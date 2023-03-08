@@ -5,6 +5,18 @@
 
 A cloud-native solution to put multiple ML models into production.
 
+
+## Want to contribute?
+
+xooai is now under hot development, you need to read the design below before driving in. Then you can clone or fork this repo and start hacking, or join the discussion [here](https://github.com/xoolab/ai/discussions).
+
+To clone this repo and enter dev mode, run
+
+```bash
+git clone https://github.com/xoolab/ai.git
+pip install -e .
+```
+
 ## Design
 
 Let's first go for a quick view on the design of xooai :)
@@ -26,8 +38,8 @@ The biggest problem so far has been the generalization of model data flows, a wa
 ```python
 from xooai import Text
 
-t1 = Text(uri='233.jpg')
-t2 = Text(uri='https://some.domain/233.jpg')
+t1 = Text(ref='233.jpg')
+t2 = Text(ref='https://some.domain/233.jpg')
 ```
 
 or from some ready text
@@ -43,27 +55,25 @@ t3 = Text(text='Aa')
 - Audio
 - Video
 
-All subclasses derive an attribute named `uri` from the base class `Doc` to specify a resource to be fetched when needed.
+All subclasses derive an attribute named `ref` from the base class `Doc` to specify a resource to be fetched when needed.
 
 You can also struct your own Doc with these subclasses and even nest it.
 
 ```python
-from dataclasses import dataclass
-from xooai import Text, Image, Video
+from xooai import Text, Image, Video, doc
 
-@dataclass
+@doc
 class YourDoc:
     video: Video
 
-@dataclass
+@doc
 class MyDoc:
     text: Text
     image: Image
     your: YourDoc
 ```
 
-Note that you have to decorate your class with `dataclass`  to generate the constructor function `__init__` for it, or use another dataclass implementated by [pydantic](https://pydantic.dev) that has support for attribute validation if you like.
-
+Note that you have to decorate your class with `doc`, an alias of `dataclass` implementated by [pydantic](https://pydantic.dev) that has support for attribute validation.
 
 
 #### Executor
@@ -81,8 +91,7 @@ class MyExecutor(Executor):
         return docs
 
 
-e = MyExecutor(name='my_executor') # we prefer lower snake case :)
-with e:
+with MyExecutor(name='my_executor') as e: # we prefer lower snake case :)
     e.run()
 ```
 
@@ -174,7 +183,7 @@ There are so many execellent Python libraries that focus on C/S and RPC stuff li
 
 We are going to provide two driver implementations using FastAPI with [msgpack](https://msgpack.org/) for docarray (de)serialization, and gRPC with its [protobuf](https://protobuf.dev) toolchain. Both are placed in subdirectory - [drivers](./xooai/drivers/).
 
-To use xooai with the gRPC driver for example.
+To use xooai with the gRPC driver for example, run
 
 ```bash
 pip install xooai[grpc]

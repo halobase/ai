@@ -18,7 +18,7 @@ setup(
     description=__description,
     long_description=__long_description,
     long_description_content_type='text/markdown',
-    install_requires=['numpy', 'Pillow'],
+    install_requires=['pydantic'],
     extras_require={
         'grpc': [
             'grpcio',
