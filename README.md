@@ -8,9 +8,9 @@ A cloud-native solution to put multiple ML models into production.
 
 ## Want to contribute?
 
-xooai is now under hot development, you need to read the design below before driving in. Then you can clone or fork this repo and start hacking, or join the discussion [here](https://github.com/xoolab/ai/discussions).
+xooai is now under hot development, you need to first read the design below before driving in then clone or fork this repo and start hacking in dev mode, or join the discussion [here](https://github.com/xoolab/ai/discussions).
 
-To clone this repo and enter dev mode, run
+To get started in dev mode, run
 
 ```bash
 git clone https://github.com/xoolab/ai.git
