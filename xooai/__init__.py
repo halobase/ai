@@ -6,13 +6,11 @@ from typing import (
     Optional,
     Union,
     Tuple,
-    Dict,
     Any,
     Iterable, 
     Callable,
     TYPE_CHECKING,
 )
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from urllib.parse import urlparse
 
@@ -83,6 +81,12 @@ class Driver(ABC):
 
 
 class NoopDriver(Driver):
+
+    def add(self, use: 'Executor', id: Optional[str] = None):
+        return super().add(use, id)
+    
+    def remove(self, id: str):
+        return super().remove(id)
 
     async def post(self, on: str, docs: Optional['DocArray']) -> Optional['DocArray']:
         return await super().post(on, docs)
@@ -171,12 +175,14 @@ def post(func: Optional[Callable[['Executor', 'DocArray'], Optional['DocArray']]
     >>>     def echo(self, docs: DocArray) -> Optional[DocArray]:
     >>>         return docs
     '''
-
     def wrap(func):
         # TODO: maintain state
         def __call__(self: 'Executor', docs: 'DocArray') -> Optional[DocArray]:
             # TODO: batching if batch_size > 1
             return func(self, docs)
+        
+        setattr(__call__, '__endpoint_kind__', 'post')
+        setattr(__call__, '__endpoint_alias__', on)
         return __call__
     
     if func is None:
@@ -187,13 +193,16 @@ def post(func: Optional[Callable[['Executor', 'DocArray'], Optional['DocArray']]
     return wrap(func)
 
 
-def stream(func: Optional[Callable[['Executor', 'Stream'], None]]):
+def stream(func: Optional[Callable[['Executor', 'Stream'], None]],
+           on: Optional[str] = None):
     '''Returns a Executor method as a stream handler.
     '''
     def wrap(func):
         def __call__(self: 'Executor', stream: 'Stream') -> None:
             return func(self, stream)
         
+        setattr(__call__, '__endpoint_kind__', 'stream')
+        setattr(__call__, '__endpoint_alias__', on)
         return __call__
     
     if func is None:
@@ -319,35 +328,3 @@ class Flow:
 def _parse_path(path: str) -> Tuple[str, str]:
     i = path.find('/')
     return path[:i], path[i+1:]
-
-
-if __name__ == '__main__':
-    from dataclasses import dataclass
-
-    class MyExecutor(Executor):
-        @post
-        def echo(self, docs: DocArray) -> Optional[DocArray]:
-            return docs
-
-
-    @dataclass
-    class YourDoc:
-        text: Text
-
-
-    @dataclass
-    class MyDoc:
-        image: Image
-        text: Text
-        your: YourDoc
-
-
-    d = MyDoc(
-        text=Text(text='Aa'), 
-        image=Image(ref='a.jpg'),
-        your=YourDoc(text=Text(text='Bb')),
-    )
-    
-    
-    s = MyExecutor(name='my_Executor', post_endpoints=['ping'])
-    

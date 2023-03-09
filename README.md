@@ -101,6 +101,9 @@ Then we call `run` from our executor instance that blocks until a signal is caug
 
 Note that here we use a new class named `DocArray`, don't worry, it's just a regular class simply subclassed from a list of `Doc`s we have talked about, to represent a series of, say inputs.
 
+> Should we have the argument of endpoint handlers limited to a DocArray or either a DocArray or any number of `Doc`s (or its subclasses)?
+>
+
 Now it's time for y'all to understand what is called a hyrid executor and why it is needed. 
 
 Consider a scenario where we are developing an endpoint handler in an executor and want to checkout if it works. We don't actually need to do any network workaround, all we need is just an in-process call to the endpoint handler as follows.
