@@ -207,7 +207,7 @@ Having been working on [Go](https://go.dev) and microservices for a long while, 
 
 ### Microservices
 
-You may have noticed that the design of the three core concepts actually makes xooai a microservice framework (in fact we prefer the term structurized-services) but with request and response limited to a Doc structure. It is! Have you ever had the idea that almost every software engineering or system architecting is essentially doing two kinds of calls - **synchronous bidirectional streaming** and **asynchronous messaging**, no matter whether it is service intercommunication or interaction with databases. This is why most of the system look the same under the table.
+You may have noticed that the design of the three core concepts actually makes xooai a microservice framework (in fact we prefer the term structurized-services) but with request and response limited to a Doc structure. It is! Have you ever had the idea that almost every software engineering or system architecting is essentially doing two things - **synchronous bidirectional streaming** and **asynchronous messaging**, no matter whether it is service intercommunication or interaction with databases. This is why most of the system look the same under the table.
 
 The synchronous bidirectional streaming can derive into three sub-calls - 1) unary call, the one we do the most often with HTTP. 2) client-side streaming, used when we upload a large bunch of data, like a video, to the server and get a single response from it. 3) server-side streaming, used when we download a hell lot of data from a server and acknowledge it with a single response.
 
