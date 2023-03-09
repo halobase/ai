@@ -36,23 +36,25 @@ class Driver(ABC):
         executors. The default gateway directs to localhost:8080.
         '''
         self.gateway = gateway or 'localhost:8080'
-        self.executors: Dict[str, 'Executor'] = {}
 
     
+    @abstractmethod
     def add(self, use: 'Executor', id: Optional[str] = None):
         '''Adds an executor into the driver to subscribe on docarray request.
         
-        'id' will default to the executor's name if not specified.
+        'id' should default to the executor's name if not specified. NOTE that
+        this method should inspect all methods decorated by 'post' or 'stream'
+        in the executor being added and then remember the type of the arguments
+        of these methods so we can instantiate them by reflection when receiving
+        a request.
         '''
-        if id is None:
-            id = use.name
-        self.executors[id] = use
+        raise NotImplementedError
 
 
+    @abstractmethod
     def remove(self, id: str):
         '''Removes an executor specified by 'id' from the driver.'''
-        if id in self.executors:
-            del self.executors[id]
+        raise NotImplementedError
 
 
     @abstractmethod
@@ -104,18 +106,9 @@ class Doc(BaseModel):
     value: Optional[bytes]
 
 
-    async def deref(self):
-        raise NotImplementedError
-
-
     @abstractmethod
     def tensor(self) -> Tensor:
         '''Returns a tensor representation of the doc.'''
-        raise NotImplementedError
-    
-
-    @abstractmethod
-    def encode(self) -> bytes:
         raise NotImplementedError
 
 
@@ -137,10 +130,6 @@ class Text(Doc):
     def tensor(self) -> Tensor:
         # TODO:
         raise NotImplementedError
-    
-
-    def encode(self) -> bytes:
-        return self.text.encode()
         
 
 
