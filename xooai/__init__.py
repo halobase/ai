@@ -107,9 +107,10 @@ class Doc(BaseModel):
 
     id: Optional[str]
     ref: Optional[str]
+    sig: Optional[str]
     value: Optional[bytes]
-
-
+    
+    
     @abstractmethod
     def tensor(self) -> Tensor:
         '''Returns a tensor representation of the doc.'''

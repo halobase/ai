@@ -180,16 +180,23 @@ which looks awesome, doesn't it? :)
 
 ### Driver
 
-We have mentioned the client and server a lot previously on this documentation. These two are the program under the hood to transmit docarraies between executors and are abstracted as an interface called `Driver` represented using the abstract class in Python so that xooai users can choose different implementations depending on their needs.
+We have mentioned the client and server a lot previously on this documentation. These two are the programs under the hood to transmit docarraies between executors and are abstracted as an interface called `Driver` represented using the abstract class in Python so that xooai users can choose different implementations depending on their needs.
 
-There are so many execellent Python libraries that focus on C/S and RPC stuff like [FastAPI](https://fastapi.tiangolo.com/) who has native support for [Swagger](https://swagger.io/), or [gRPC](http://grpc.io) who uses HTTP/2 as the tranport layer.
+There are so many execellent Python libraries that focus on C/S and RPC stuff like [FastAPI](https://fastapi.tiangolo.com/) who has native support for [Swagger](https://swagger.io/), or [gRPC](http://grpc.io) that uses HTTP/2 to maintain connections.
 
-We are going to provide two driver implementations using FastAPI with [msgpack](https://msgpack.org/) for docarray (de)serialization, and gRPC with its [protobuf](https://protobuf.dev) toolchain. Both are placed in subdirectory - [drivers](./xooai/drivers/).
+We are going to provide three driver implementations listed below.
 
-To use xooai with the gRPC driver for example, run
+- HTTP driver - built right upon [uvicorn](https://www.uvicorn.org/) to make the driver light-weight and efficient.
+- gRPC driver - using [gRPC](http://grpc.io) and the [protobuf](https://protobuf.dev) toolchain.
+- QUIC driver - [aiooquic](https://github.com/aiortc/aioquic) potentially .
+
+
+All driver implementations should have support for both JSON and [msgpack](https://msgpack.org) to (de)serialize data over the drivers themselves, and are placed in subdirectory - [drivers](./xooai/drivers/).
+
+To use xooai with the HTTP driver for example, run
 
 ```bash
-pip install xooai[grpc]
+pip install xooai[http]
 ```
 
 You are welcome to PR more driver implementation based on the tool you like.
