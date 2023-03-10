@@ -7,7 +7,8 @@ from typing import (
     Union,
     Tuple,
     Any,
-    Iterable, 
+    Iterable,
+    BinaryIO,
     Callable,
     TYPE_CHECKING,
 )
@@ -100,6 +101,25 @@ class NoopDriver(Driver):
     async def stop(self, timeout: int = 300):
         return await super().stop(timeout)
 
+
+
+class Store(ABC):
+
+    def __init__(self,
+                 gateway: str):
+        '''Creates a storage instance.'''
+        self.gateway = gateway
+
+
+    @abstractmethod
+    async def put(self, reader: BinaryIO):
+        raise NotImplementedError
+    
+
+    @abstractmethod
+    async def get(self, path: str) -> BinaryIO:
+        raise NotImplementedError
+    
 
 
 class Doc(BaseModel):
@@ -222,6 +242,7 @@ class Executor:
                  *,
                  name: Optional[str] = None,
                  driver: Optional['Driver'] = None,
+                 store: Optional['Store'] = None,
                  post_endpoints: Optional[Iterable[str]] = None,
                  stream_endpoints: Optional[Iterable[str]] = None,):
         '''Instantiate an executor.
@@ -229,6 +250,7 @@ class Executor:
         '''
         self.name = name
         self.driver = driver
+        self.store = store
 
         if self.driver is None:
             self.driver = NoopDriver()

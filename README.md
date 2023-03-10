@@ -3,8 +3,7 @@
 ![GitHub issues](https://img.shields.io/github/issues/xoolab/ui)
 ![license](https://img.shields.io/github/license/xoolab/ai)
 
-A cloud-native solution to put multiple ML models into production.
-
+A lightweight and pluggable tookit to put multiple ML models into production.
 
 ## Want to contribute?
 
@@ -201,6 +200,19 @@ pip install xooai[http]
 
 You are welcome to PR more driver implementation based on the tool you like.
 
+### Storage
+
+One of the differences between a regular HTTP service and a ML model service is that the later one often has to handle a large chunk of request like a set of HQ images and a large video. We used to solve this by using a thirding-party OSS - aka. object storage service, public or self-hosted like [MinIO](https://min.io).
+
+Given that, a doc has to be associated with a unique path under an OSS, which leads us to another abstraction within Doc - the Store interface.
+
+`Store` has two abstract methods - `put` to upload a file to a server and `get` to download a file from that server. The server needs to be accesable for both the executors.
+
+For example, when an executor is going to post a doc of a large file, it calls the store interface to put the file to a server the interface is implemented for before it actually post the doc, and the executor receiving the doc will get that file from the same server then cache it if needed.
+
+A doc can curry a signature of the file so that the executor receiving the doc can compare the signature from its cache to see if it has to call the store interface to get the file, or just reuse from its cache.
+
+
 ### Cloud Native
 
 The sencond largest pain in the *ss is how we can shift our models into a cloud-native environment. Even with xooai now, it is still not clear how.
@@ -228,4 +240,4 @@ By now, [micro](https://micro.dev) is the most promising one.
 
 ## License
 
-XOOAI is Apache 2.0 licensed.
+xooai is Apache 2.0 licensed.
