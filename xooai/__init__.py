@@ -6,6 +6,7 @@ from typing import (
     Optional,
     Union,
     Tuple,
+    List,
     Any,
     Iterable,
     BinaryIO,
@@ -14,6 +15,8 @@ from typing import (
 )
 from abc import ABC, abstractmethod
 from urllib.parse import urlparse
+from inspect import getfullargspec, iscoroutinefunction
+from functools import wraps
 
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass as doc
@@ -28,25 +31,22 @@ Tensor = TypeVar('Tensor', bound=ForwardRef('numpy.ndarray'))
 
 class Driver(ABC):
 
-    def __init__(self, gateway: Optional[str] = None):
-        ''''Create a driver instance.
-        
-        'gateway' specifies a gateway address to invoke endpoints from remote
-        executors. The default gateway directs to localhost:8080.
-        '''
-        self.gateway = gateway or 'localhost:8080'
+    def __init__(self,
+                 *,
+                 host: str = '127.0.0.1',
+                 port: int = 8080,
+                 keyfile: Optional[str] = None,
+                 certfile: Optional[str] = None):
+        ''''Create a driver instance.'''
+        self.host = host
+        self.port = port
+        self.keyfile = keyfile
+        self.certfile = certfile
 
     
     @abstractmethod
     def add(self, use: 'Executor', id: Optional[str] = None):
-        '''Adds an executor into the driver to subscribe on docarray request.
-        
-        'id' should default to the executor's name if not specified. NOTE that
-        this method should inspect all methods decorated by 'post' or 'stream'
-        in the executor being added and then remember the type of the arguments
-        of these methods so we can instantiate them by reflection when receiving
-        a request.
-        '''
+        '''Adds an executor into the driver to subscribe on doc requests.'''
         raise NotImplementedError
 
 
@@ -57,25 +57,25 @@ class Driver(ABC):
 
 
     @abstractmethod
-    async def post(self, on: str, docs: Optional['DocArray']) -> Optional['DocArray']:
-        '''Posts a docarray to the endpoint speicified by 'on'.'''
+    async def post(self, on: str, doc: 'Doc') -> Optional['Doc']:
+        '''Posts one or more docs to the endpoint speicified by 'on'.'''
         raise NotImplementedError
 
 
     @abstractmethod
     async def stream(self, on: str) -> 'Stream':
-        '''Creates a stream used to send/receive docarray to/from an endpoint'''
+        '''Creates a stream used to send/receive a doc to/from an endpoint'''
         raise NotImplementedError
 
 
     @abstractmethod
-    async def start(self):
-        '''Starts up the driver but non-blocking to receive docarray request'''
+    def start(self):
+        '''Starts up the driver.'''
         raise NotImplementedError
 
 
     @abstractmethod
-    async def stop(self, timeout: int = 300):
+    def stop(self, timeout: int = 300):
         '''Stops the driver in 'timeout' milliseconds, default to 300ms.'''
         raise NotImplementedError
     
@@ -89,17 +89,17 @@ class NoopDriver(Driver):
     def remove(self, id: str):
         return super().remove(id)
 
-    async def post(self, on: str, docs: Optional['DocArray']) -> Optional['DocArray']:
-        return await super().post(on, docs)
+    async def post(self, on: str, doc: 'Doc') -> Optional['Doc']:
+        return await super().post(on, doc)
     
     async def stream(self, on: str) -> 'Stream':
         return await super().stream(on)
     
-    async def start(self):
-        return await super().start()
+    def start(self):
+        return super().start()
     
-    async def stop(self, timeout: int = 300):
-        return await super().stop(timeout)
+    def stop(self, timeout: int = 300):
+        return super().stop(timeout)
 
 
 
@@ -138,16 +138,6 @@ class Doc(BaseModel):
 
 
 
-class DocArray(BaseModel):
-    '''A class representing a series of docs.'''
-    docs: Optional[Iterable[Doc]]
-
-
-    def __iter__(self):
-        yield from self.docs
-
-
-
 class Text(Doc):
     '''A class derived from Doc for representing text.'''
     text: Optional[str]
@@ -178,60 +168,86 @@ class Image(Doc):
         raise NotImplementedError
 
 
+class PostWrapperAsync:
 
-def post(func: Optional[Callable[['Executor', 'DocArray'], Optional['DocArray']]] = None, 
+    def __init__(self,
+                 func: Callable[['Executor', 'Doc'], Optional['Doc']],
+                 on: Optional[str] = None,
+                 batch_size: Optional[int] = None,
+                 timeout: int = 300):
+        '''Creates a PostWrapper instance.'''
+
+        if not iscoroutinefunction(func):
+            @wraps(func)
+            async def async_func(*args, **kwargs):
+                return func(*args, **kwargs)
+            func = async_func
+
+        self.func = func
+        self.on = on or func.__name__
+        self.batch_size = batch_size
+        self.timeout = timeout
+        self.spec = getfullargspec(func)
+
+
+    async def __call__(self, exe: 'Executor', doc: Doc) -> Optional['Doc']:
+        # TODO: batching
+        return await self.func(exe, doc)
+    
+
+class StreamWrapper:
+
+    def __init__(self,
+                 func: Callable[['Stream'], None],
+                 on: Optional[str] = None):
+        '''Creates a StreamWrapper instance.'''
+        
+        self.func = func
+        self.on = on
+        self.spec = getfullargspec(func)
+
+
+
+def post(func: Optional[Callable[['Executor', 'Doc'], Optional['Doc']]] = None, 
          batch_size: Optional[int] = None,
          timeout: Optional[int] = None,
          on: Optional[str] = None):
     '''Returns a executor's method as a post endpoint handler.
 
     Using this function as a decorator is recommanded.
-    
-    Example:
-    >>> from typing import Optional
-    >>> from xooai import Executor
-    >>>
-    >>> class MyExecutor(Executor):
-    >>>     @post
-    >>>     def echo(self, docs: DocArray) -> Optional[DocArray]:
-    >>>         return docs
     '''
     def wrap(func):
-        # TODO: maintain state
-        def __call__(self: 'Executor', docs: 'DocArray') -> Optional[DocArray]:
-            # TODO: batching if batch_size > 1
-            return func(self, docs)
-        
-        setattr(__call__, '__endpoint_kind__', 'post')
-        setattr(__call__, '__endpoint_alias__', on)
-        return __call__
+        return PostWrapperAsync(func, on, batch_size, timeout)
     
     if func is None:
         # we are being used as @on()
         return wrap
-    
     # we are being used as @on
     return wrap(func)
 
 
-def stream(func: Optional[Callable[['Executor', 'Stream'], None]],
+def stream(func: Optional[Callable[['Stream'], None]],
            on: Optional[str] = None):
-    '''Returns a Executor method as a stream handler.
-    '''
+    '''Returns a Executor method as a stream handler.'''
     def wrap(func):
-        def __call__(self: 'Executor', stream: 'Stream') -> None:
-            return func(self, stream)
-        
-        setattr(__call__, '__endpoint_kind__', 'stream')
-        setattr(__call__, '__endpoint_alias__', on)
-        return __call__
+        return StreamWrapper(func, on)
     
     if func is None:
         # we are being used as @on()
         return wrap
-    
     # we are being used as @on
     return wrap(func)
+
+
+
+def _attrs(obj: object, cls: type) -> List[Any]:
+    '''Returns a list containing all attributes of type 'cls' in 'obj'.'''
+    attrs = []
+    for name in obj.__dir__():
+        attr = getattr(obj, name)
+        if isinstance(attr, cls):
+            attrs.append(attr)
+    return attrs
 
 
 class Stream: ...
@@ -248,7 +264,7 @@ class Executor:
         '''Instantiate an executor.
         'post_endpoints'
         '''
-        self.name = name
+        self.name = name or self.__class__.__name__
         self.driver = driver
         self.store = store
 
@@ -259,13 +275,13 @@ class Executor:
         # using getattr.
         if post_endpoints:
             for ep in post_endpoints:
-                setattr(self, ep, lambda docs: self.driver.post(ep, docs=docs))
+                setattr(self, ep, lambda doc: self.driver.post(ep, doc))
         if stream_endpoints:
             for ep in stream_endpoints:
                 setattr(self, ep, lambda: self.driver.stream(ep))
 
 
-    async def post(self, on: str, docs: Optional[DocArray] = None) -> Optional[DocArray]:
+    async def post(self, on: str, doc: Doc) -> Optional[Doc]:
         '''Invokes an endpoint specified by 'on'.
 
         The reason why we use getattr every time this method is called is that
@@ -274,14 +290,22 @@ class Executor:
         '''
         try:
             func = getattr(self, on)
-            return await func(docs)
+            return await func(doc)
         except AttributeError:
             # fallback to the client
-            return await self.driver.post(on, docs)
+            return await self.driver.post(on, doc)
         
 
     
     async def stream(self, on: str) -> Stream: raise NotImplementedError
+
+
+    def post_handlers(self) -> List[PostWrapperAsync]:
+        return _attrs(self, PostWrapperAsync)
+    
+
+    def stream_handlers(self) -> List[StreamWrapper]:
+        return _attrs(self, StreamWrapper)
 
 
     def __enter__(self):
@@ -292,14 +316,17 @@ class Executor:
         self.driver.stop()
 
 
+
 class Flow:
 
     def __init__(self,
                  name: Optional[str] = None,
-                 driver: Optional['Driver'] = None):
+                 driver: Optional['Driver'] = None,
+                 store: Optional['Store'] = None):
         '''Create a flow.'''
         self.name = name
         self.driver = driver
+        self.store = store
         self.nodes = {}
         self.edges = {}
 
@@ -330,6 +357,7 @@ class Flow:
             use = Executor(name=name,
                            gateway=url.netloc,
                            driver=self.driver,
+                           store=self.store,
                            post_endpoints=(endpoint,))
         else:
             raise TypeError(f"'use' can only be an instance of either Executor or str")
@@ -341,9 +369,8 @@ class Flow:
             raise NotImplementedError
 
 
-    async def post(self, docs: Optional[DocArray] = None) -> Optional[DocArray]:
-        '''Fires the flow of executors and wait until the last executor finishes.
-        '''
+    async def post(self, doc: Doc) -> Optional[Doc]:
+        '''Fires the flow of executors and wait until the last executor finishes.'''
         raise NotImplementedError
 
 

@@ -82,26 +82,21 @@ The next level of abstraction is called an executor, a hybrid structure that has
 We use the term `hybrid`, because an executor is both the client and the server of a model service. You will see why such an approach. Right Now let's just take a look at a simple example of how to use an executor.
 
 ```python
-from xooai import Executor, post
+from xooai import Executor, Image, post
 
 class MyExecutor(Executor):
     @post
-    def echo(self, docs: DocArray):
-        return docs
+    def echo(self, doc: Image):
+        return doc
 
 
-with MyExecutor(name='my_executor') as e: # we prefer lower snake case :)
+with MyExecutor() as e:
     e.run()
 ```
 
-The Executor has implementated methods to send and receive requests from another executor (remember we said it's hybrid?), so we need to subclass our own executor `MyExecutor` from it, but the program under the hood does not know where to dispatch received requests yet, therefore, we define the endpoint handler, named `echo` in our case, in our executor, it simply returns the docs received to its caller without modifying it. *You must have realized that the endpoint handler is where we call our trained model and return the result as another DocArray instance :)*
+The Executor has implementated methods to send and receive requests from another executor (remember we said it's hybrid?), so we need to subclass our own executor `MyExecutor` from it, but the program under the hood does not know where to dispatch received requests yet, therefore, we define the endpoint handler, named `echo` in our case, in our executor, it simply returns the docs received to its caller without modifying it. *You must have realized that the endpoint handler is where we call our trained model and return the result as another Doc instance :)*
 
 Then we call `run` from our executor instance that blocks until a signal is caught. Our first little executor is up!
-
-Note that here we use a new class named `DocArray`, don't worry, it's just a regular class simply subclassed from a list of `Doc`s we have talked about, to represent a series of, say inputs.
-
-> Should we have the argument of endpoint handlers limited to a DocArray or either a DocArray or any number of `Doc`s (or its subclasses)?
->
 
 Now it's time for y'all to understand what is called a hyrid executor and why it is needed. 
 
@@ -112,17 +107,17 @@ from xooai import Executor, post
 
 class MyExecutor(Executor):
     @post
-    def echo(self, docs: DocArray):
-        return docs
+    def echo(self, doc: Image):
+        return doc
 
-e = MyExecutor(name='my_executor')
-res = e.post(on='echo', docs=DocArray())
+e = MyExecutor()
+res = e.post(on='echo', doc=Image(ref='233.jpg'))
 ```
 
 The last line makes an in-process mocking invocation to the `echo` endpoint. Wait! Why don't we just make the call like
 
 ```python
-res = e.echo(docs=DocArray())
+res = e.echo(doc=Image(ref='233.jpg'))
 ```
 
 You are right! We can make a direct call to the echo method, but we are testing whether a request can be transmitted to the endpoint handler via the whole call stack, aren't we?
@@ -140,8 +135,8 @@ from xooai import Flow, Executor, post
 
 class MyExecutor(Executor):
     @post
-    def echo(self, docs: DocArray):
-        return docs
+    def echo(self, image: Image):
+        return image
 
 
 f = Flow()
@@ -149,7 +144,7 @@ f.add(use='https://some.domain/your_executor/echo', id='e1')
 f.add(use='https://some.domain/her_executor/echo', id='e2')
 f.add(use=MyExecutor, on='echo', id='e3', needs=('e1', 'e2'))
 
-res = f.post(docs=DocArray())
+res = f.post(doc=Image(ref='233.jpg'))
 ```
 
 As you can see, a flow is like a pipeline consist with multiple excutors. In this case, we added three executors into a flow, each of them is indexed by an `id` argument. e3 is our self-defined executor that has an extra argument called `needs` to tell the flow scheduler that e3 can be executed only after e1 and e2 are finished. This is why we call it a pipeline :)
