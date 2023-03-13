@@ -37,14 +37,14 @@ The biggest problem so far has been the generalization of model data flows, a wa
 ```python
 from xooai import Text
 
-t1 = Text(ref='233.jpg')
-t2 = Text(ref='https://some.domain/233.jpg')
+t1 = Text(ref='233.txt')
+t2 = Text(ref='https://some.domain/233.txt')
 ```
 
 or from some ready text
 
 ```python
-t3 = Text(text='Aa')
+t3 = Text(value='Aa')
 ```
 
 `Text` is subclassed from `Doc` a class with abstract methods to represent ML inputs or outputs. We have provided a few other subclasses that we use the most often in our researches, and you are welcome to PR for more rarely used data types.
@@ -59,20 +59,20 @@ All subclasses derive an attribute named `ref` from the base class `Doc` to spec
 You can also struct your own Doc with these subclasses and even nest it.
 
 ```python
-from xooai import Text, Image, Video, doc
+from xooai import Text, Image, Video, ComboDoc
 
-@doc
-class YourDoc:
+
+class YourDoc(ComboDoc):
     video: Video
 
-@doc
-class MyDoc:
+
+class MyDoc(ComboDoc):
     text: Text
     image: Image
     your: YourDoc
 ```
 
-Note that you have to decorate your class with `doc`, an alias of `dataclass` implementated by [pydantic](https://pydantic.dev) that has support for attribute validation.
+Note that you have to subclass from `ComboDoc`, an alias of `BaseModel` implementated by [pydantic](https://pydantic.dev) that has support for attribute validation.
 
 
 #### Executor
@@ -91,12 +91,12 @@ class MyExecutor(Executor):
 
 
 with MyExecutor() as e:
-    e.run()
+    e.serve()
 ```
 
 The Executor has implementated methods to send and receive requests from another executor (remember we said it's hybrid?), so we need to subclass our own executor `MyExecutor` from it, but the program under the hood does not know where to dispatch received requests yet, therefore, we define the endpoint handler, named `echo` in our case, in our executor, it simply returns the docs received to its caller without modifying it. *You must have realized that the endpoint handler is where we call our trained model and return the result as another Doc instance :)*
 
-Then we call `run` from our executor instance that blocks until a signal is caught. Our first little executor is up!
+Then we call `serve` from our executor instance that blocks until a signal is caught. Our first little executor is up!
 
 Now it's time for y'all to understand what is called a hyrid executor and why it is needed. 
 
@@ -135,8 +135,8 @@ from xooai import Flow, Executor, post
 
 class MyExecutor(Executor):
     @post
-    def echo(self, image: Image):
-        return image
+    def echo(self, doc: Image):
+        return doc
 
 
 f = Flow()

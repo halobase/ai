@@ -8,24 +8,21 @@ from typing import (
     Tuple,
     List,
     Any,
+    Type,
     Iterable,
     BinaryIO,
     Callable,
-    TYPE_CHECKING,
 )
 from abc import ABC, abstractmethod
 from urllib.parse import urlparse
 from inspect import getfullargspec, iscoroutinefunction
 from functools import wraps
+from uuid import UUID, uuid1
 
-from pydantic import BaseModel
-from pydantic.dataclasses import dataclass as doc
-
-
-if TYPE_CHECKING:
-    from PIL.Image import Image as PILImage
+from pydantic import BaseModel, Field
 
 
+PILImage = TypeVar('PILImage', bound=ForwardRef('PIL.Image'))
 Tensor = TypeVar('Tensor', bound=ForwardRef('numpy.ndarray'))
 
 
@@ -57,8 +54,8 @@ class Driver(ABC):
 
 
     @abstractmethod
-    async def post(self, on: str, doc: 'Doc') -> Optional['Doc']:
-        '''Posts one or more docs to the endpoint speicified by 'on'.'''
+    async def post(self, path: str, doc: 'Doc', res_type: Type['Doc']) -> Optional['Doc']:
+        '''Posts one or more docs to the endpoint speicified by 'path'.'''
         raise NotImplementedError
 
 
@@ -122,13 +119,16 @@ class Store(ABC):
     
 
 
+class ComboDoc(BaseModel): ...
+
+
 class Doc(BaseModel):
     '''A class with some abstract methods to represent model input or output.'''
 
-    id: Optional[str]
+    id: UUID = Field(default_factory=uuid1)
     ref: Optional[str]
     sig: Optional[str]
-    value: Optional[bytes]
+    value: Optional[str]
     
     
     @abstractmethod
@@ -137,10 +137,8 @@ class Doc(BaseModel):
         raise NotImplementedError
 
 
-
 class Text(Doc):
     '''A class derived from Doc for representing text.'''
-    text: Optional[str]
 
     def tensor(self) -> Tensor:
         # TODO:
@@ -150,16 +148,9 @@ class Text(Doc):
 
 class Image(Doc):
     '''A class derived from Doc for representing an image.'''
-    image: Optional["PILImage"]
-
 
     def tensor(self) -> Tensor:
         # TODO: 
-        raise NotImplementedError
-    
-
-    def encode(self) -> bytes:
-        # TODO:
         raise NotImplementedError
 
 
@@ -177,17 +168,20 @@ class PostWrapperAsync:
                  timeout: int = 300):
         '''Creates a PostWrapper instance.'''
 
-        if not iscoroutinefunction(func):
-            @wraps(func)
-            async def async_func(*args, **kwargs):
-                return func(*args, **kwargs)
-            func = async_func
-
         self.func = func
         self.on = on or func.__name__
         self.batch_size = batch_size
         self.timeout = timeout
-        self.spec = getfullargspec(func)
+
+        if not iscoroutinefunction(func):
+            @wraps(func)
+            async def async_func(self: 'Executor', doc: 'Doc') -> Optional['Doc']:
+                return func(self, doc)
+            self.func = async_func
+
+        self.spec = getfullargspec(self.func)
+        if 'doc' not in self.spec.annotations:
+            raise TypeError(f"The argument of handler '{self.on}' must be named as 'doc'")
 
 
     async def __call__(self, exe: 'Executor', doc: Doc) -> Optional['Doc']:
@@ -261,9 +255,7 @@ class Executor:
                  store: Optional['Store'] = None,
                  post_endpoints: Optional[Iterable[str]] = None,
                  stream_endpoints: Optional[Iterable[str]] = None,):
-        '''Instantiate an executor.
-        'post_endpoints'
-        '''
+        '''Instantiate an executor.'''
         self.name = name or self.__class__.__name__
         self.driver = driver
         self.store = store
@@ -271,17 +263,24 @@ class Executor:
         if self.driver is None:
             self.driver = NoopDriver()
 
+        self.driver.add(self)
+
         # Inject endpoints dynamically so that they can be accessed by self.post
         # using getattr.
         if post_endpoints:
-            for ep in post_endpoints:
-                setattr(self, ep, lambda doc: self.driver.post(ep, doc))
+            for on in post_endpoints:
+                path = f'/{self.name}/{on}'
+                setattr(self, on, lambda doc, res_type: self.driver.post(path, doc, res_type))
         if stream_endpoints:
-            for ep in stream_endpoints:
-                setattr(self, ep, lambda: self.driver.stream(ep))
+            for on in stream_endpoints:
+                path = f'/{self.name}/{on}'
+                setattr(self, on, lambda: self.driver.stream(path))
 
 
-    async def post(self, on: str, doc: Doc) -> Optional[Doc]:
+    async def post(self, *,
+                   on: str, 
+                   doc: Doc,
+                   res_type: Type[Doc]) -> Optional[Doc]:
         '''Invokes an endpoint specified by 'on'.
 
         The reason why we use getattr every time this method is called is that
@@ -290,14 +289,21 @@ class Executor:
         '''
         try:
             func = getattr(self, on)
-            return await func(doc)
+            return await func(doc, res_type)
         except AttributeError:
             # fallback to the client
-            return await self.driver.post(on, doc)
+            path = f'/{self.name}/{on}'
+            return await self.driver.post(path, doc, res_type)
         
 
     
     async def stream(self, on: str) -> Stream: raise NotImplementedError
+
+
+    def serve(self):
+        '''Starts serving the executor.'''
+        self.driver.start()
+
 
 
     def post_handlers(self) -> List[PostWrapperAsync]:
@@ -312,7 +318,15 @@ class Executor:
         return self
     
 
-    def __exit__(self):
+    def __exit__(self, *args):
+        self.driver.stop()
+
+
+    async def __aenter__(self):
+        return self
+    
+
+    async def __aexit__(self, *args):
         self.driver.stop()
 
 
